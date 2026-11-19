@@ -1,0 +1,106 @@
+From cf309619f2c0387f0e32ace1131b1dbb45d27cff Mon Sep 17 00:00:00 2001
+From: yuxilong <305758560@qq.com>
+Date: Mon, 17 Aug 2026 18:50:26 +0800
+Subject: [PATCH] =?UTF-8?q?feat:=20=E6=94=AF=E6=8C=81=20iOS=20=E7=BB=93?=
+ =?UTF-8?q?=E6=9E=84=E5=8C=96=E6=8E=A7=E5=88=B6=E5=8F=B0=E6=97=A5=E5=BF=97?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ mars/xlog/objc/objc_console.mm | 30 +++++++++++++++++++++++++++---
+ mars/xlog/src/appender.cc      |  9 ++++++++-
+ 2 files changed, 35 insertions(+), 4 deletions(-)
+
+diff --git a/mars/xlog/objc/objc_console.mm b/mars/xlog/objc/objc_console.mm
+index 840270a5..58627850 100644
+--- a/mars/xlog/objc/objc_console.mm
++++ b/mars/xlog/objc/objc_console.mm
+@@ -13,6 +13,9 @@
+ 
+ #import <Foundation/Foundation.h>
+ #import <os/log.h>
++#include <mutex>
++#include <string>
++#include <unordered_map>
+ #import "comm/objc/scope_autoreleasepool.h"
+ #include "comm/ptrbuffer.h"
+ #include "comm/xlogger/xlogger.h"
+@@ -23,7 +26,29 @@
+ 
+ static TConsoleFun sg_console_fun = TConsoleFun::kConsoleOSLog;
+ 
+-void log_formater(const XLoggerInfo* _info, const char* _logbody, PtrBuffer& _log);
++static os_log_t ConsoleOSLog(const char *_category)
++{
++    static std::mutex console_log_mutex;
++    static std::unordered_map<std::string, os_log_t> console_logs;
++    static std::string subsystem;
++    static dispatch_once_t once_token;
++    dispatch_once(&once_token, ^{
++        NSString *bundleID = [NSBundle mainBundle].bundleIdentifier;
++        subsystem = bundleID.length > 0 ? bundleID.UTF8String : "com.baitu.BTLogger";
++    });
++
++    const char *category = NULL != _category && '\0' != _category[0] ? _category : "BTLogger";
++    std::lock_guard<std::mutex> lock(console_log_mutex);  // SIMPLIFY: 共用缓存锁，竞争成热点时改读写锁
++    auto existing_log = console_logs.find(category);
++
++    if (console_logs.end() != existing_log) return existing_log->second;  // 防止全局集合增长
++
++    os_log_t console_log = os_log_create(subsystem.c_str(), category);
++    console_logs.emplace(category, console_log);
++    return console_log;
++}
++
++void log_formater(const XLoggerInfo *_info, const char *_logbody, PtrBuffer &_log);
+ 
+ void appender_set_console_fun(TConsoleFun _fun) { sg_console_fun = _fun; }
+ 
+@@ -38,7 +63,6 @@ void ConsoleLog(const XLoggerInfo* _info, const char* _log) {
+     log_formater(_info, _log, formatted_buffer);
+ 
+     if (kConsoleOSLog == sg_console_fun) {
+-        os_log_t log_t = os_log_create("", NULL == _info->tag ? "" : _info->tag);
+         os_log_type_t type = OS_LOG_TYPE_DEFAULT;
+         switch (_info->level) {
+             case kLevelVerbose:
+@@ -62,7 +86,7 @@ void ConsoleLog(const XLoggerInfo* _info, const char* _log) {
+             default:
+                 break;
+         }
+-        os_log_with_type(log_t, type, "%{public}s", formatted_log);
++        os_log_with_type(ConsoleOSLog(_info->tag), type, "%{public}s", formatted_log);
+     } else if (kConsoleNSLog == sg_console_fun) {
+         // NSLog 模式也复用文件 formatter，避免调试输出与解码后的文件格式不一致
+         NSLog(@"%s", formatted_log);
+diff --git a/mars/xlog/src/appender.cc b/mars/xlog/src/appender.cc
+index 3da89cd9..24a536d3 100644
+--- a/mars/xlog/src/appender.cc
++++ b/mars/xlog/src/appender.cc
+@@ -205,7 +205,9 @@ void XloggerAppender::Write(const XLoggerInfo* _info, const char* _log) {
+             recursion_str += _log;
+         }
+ 
+-        ConsoleLog(&info, recursion_str.c_str());
++        // 递归错误也必须服从控制台开关，避免 Release 创建 Unified Logging category。
++        if (consolelog_open_)
++            ConsoleLog(&info, recursion_str.c_str());
+     } else {
+         if (!recursion_str.empty()) {
+             WriteTips2File(recursion_str.c_str());
+@@ -691,6 +693,11 @@ void XloggerAppender::__GetMarkInfo(char* _info, size_t _info_len) {
+ }
+ 
+ void XloggerAppender::__WriteTips2Console(const char* _tips_format, ...) {
++    // 文件错误兜底不能绕过控制台开关，否则 Release 仍会创建 Unified Logging category。
++    if (!consolelog_open_) {
++        return;
++    }
++
+     if (nullptr == _tips_format) {
+         return;
+     }
+-- 
+2.50.1 (Apple Git-155)
+

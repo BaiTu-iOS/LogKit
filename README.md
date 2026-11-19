@@ -1,5 +1,7 @@
 # LogKit
 
+[简体中文](README.zh-CN.md) | English
+
 LogKit provides category-based logging for Swift and Objective-C on iOS and macOS. A Swift member macro creates a log channel bound to the category you choose. Messages are evaluated on the calling thread only when a destination or observer accepts the level.
 
 ## Install
@@ -43,3 +45,17 @@ LK_LOG_INFO("Network", @"Connected to %@", serverName);
 ```
 
 Run `swift test` on macOS to verify the runtime and macro expansion.
+
+## Prebuilt macro for Apple Silicon Macs
+
+The [1.0.0 release](https://github.com/BaiTu-iOS/LogKit/releases/tag/1.0.0) provides a local Swift package for Xcode 27.2 (27B52). Check the archive against the published SHA-256 and extract it to `Vendor/LogKit`. Add that directory as a local package and select the `LogKit` product. In each target that uses `@Logger`, add this to **Other Swift Flags**:
+
+```text
+$(inherited) -Xfrontend -load-plugin-executable -Xfrontend "$(SRCROOT)/Vendor/LogKit/Plugins/LogCompilerPlugin#LogCompilerPlugin"
+```
+
+This package includes the runtime sources and a host-side arm64 executable, so consumers can build without SwiftSyntax. Installing the regular Git package builds the macro from source. Recheck compiler compatibility when upgrading Xcode.
+
+## Optional Mars file logging engine
+
+[Vendor/Mars](Vendor/Mars) contains the iOS xlog static XCFramework (revision `cf309619`), its eight patches and license notices. It supports arm64 devices and arm64/x86_64 simulators. Hosts can use it in a custom `LKLogDestination`. To rebuild from pinned Tencent/mars sources with Xcode, CMake and Python 3, run `./Scripts/build-mars.sh`. Unzip `Vendor/Mars/mars.xcframework.zip` to access the framework. Pass an output ZIP path to keep the bundled framework in place.

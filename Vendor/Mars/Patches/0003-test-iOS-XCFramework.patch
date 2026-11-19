@@ -1,0 +1,203 @@
+From 5f45f6ce422f5b08cc965972f24296919e390c6d Mon Sep 17 00:00:00 2001
+From: yuxilong <305758560@qq.com>
+Date: Thu, 6 Aug 2026 16:29:10 +0800
+Subject: [PATCH 3/7] =?UTF-8?q?test:=20=E5=A2=9E=E5=8A=A0=20iOS=20XCFramew?=
+ =?UTF-8?q?ork=20=E4=BA=A7=E7=89=A9=E9=AA=8C=E8=AF=81?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ mars/xlog/tests/verify_ios_xcframework.py     | 121 ++++++++++++++++++
+ .../tests/verify_ios_xcframework_unittest.py  |  54 ++++++++
+ 2 files changed, 175 insertions(+)
+ create mode 100644 mars/xlog/tests/verify_ios_xcframework.py
+ create mode 100644 mars/xlog/tests/verify_ios_xcframework_unittest.py
+
+diff --git a/mars/xlog/tests/verify_ios_xcframework.py b/mars/xlog/tests/verify_ios_xcframework.py
+new file mode 100644
+index 00000000..dd420cb8
+--- /dev/null
++++ b/mars/xlog/tests/verify_ios_xcframework.py
+@@ -0,0 +1,121 @@
++#!/usr/bin/env python3
++
++import argparse
++import plistlib
++import subprocess
++from pathlib import Path
++
++
++EXPECTED_LIBRARIES = {
++    "ios-arm64": {
++        "architectures": {"arm64"},
++        "platform": "ios",
++        "variant": None,
++    },
++    "ios-arm64_x86_64-simulator": {
++        "architectures": {"arm64", "x86_64"},
++        "platform": "ios",
++        "variant": "simulator",
++    },
++}
++REQUIRED_HEADERS = (
++    "Headers/xlog/appender.h",
++    "Headers/xlog/xlogger.h",
++    "Headers/xlog/xlogger_interface.h",
++    "Headers/xlog/xloggerbase.h",
++)
++REQUIRED_SYMBOLS = (
++    "appender_close",
++    "appender_flush_sync",
++    "appender_getfilepath_from_timespan",
++    "appender_open",
++    "appender_set_console_log",
++    "appender_set_max_alive_duration",
++    "xlogger_Level",
++    "xlogger_SetLevel",
++    "xlogger_Write",
++)
++
++
++class ValidationError(RuntimeError):
++    """Raised when an XCFramework does not match BTLogger requirements."""
++
++
++def command_output(arguments: list[str]) -> str:
++    """Run a read-only inspection command and return its standard output."""
++    try:
++        result = subprocess.run(arguments, check=True, capture_output=True, text=True)
++    except subprocess.CalledProcessError as error:
++        detail = error.stderr.strip() or error.stdout.strip()
++        raise ValidationError(f"command failed: {' '.join(arguments)}: {detail}") from error
++    return result.stdout
++
++
++def load_libraries(xcframework_path: Path) -> dict[str, dict]:
++    """Load and index the XCFramework library declarations."""
++    info_path = xcframework_path / "Info.plist"
++    if not info_path.is_file():
++        raise ValidationError(f"missing Info.plist: {info_path}")
++    with info_path.open("rb") as info_file:
++        info = plistlib.load(info_file)
++    libraries = info.get("AvailableLibraries")
++    if not isinstance(libraries, list):
++        raise ValidationError("Info.plist has no AvailableLibraries array")
++    return {library["LibraryIdentifier"]: library for library in libraries}
++
++
++def validate_library(xcframework_path: Path, identifier: str, library: dict, expected: dict) -> None:
++    """Validate one framework slice, its public headers, architectures, and symbols."""
++    architectures = set(library.get("SupportedArchitectures", []))
++    if architectures != expected["architectures"]:
++        raise ValidationError(f"{identifier} architectures mismatch: expected {sorted(expected['architectures'])}, got {sorted(architectures)}")
++    if library.get("SupportedPlatform") != expected["platform"]:
++        raise ValidationError(f"{identifier} platform mismatch: {library.get('SupportedPlatform')}")
++    if library.get("SupportedPlatformVariant") != expected["variant"]:
++        raise ValidationError(f"{identifier} variant mismatch: {library.get('SupportedPlatformVariant')}")
++
++    framework_path = xcframework_path / identifier / library.get("LibraryPath", "")
++    binary_path = framework_path / "mars"
++    if not binary_path.is_file():
++        raise ValidationError(f"missing framework binary: {binary_path}")
++    for relative_header in REQUIRED_HEADERS:
++        if not (framework_path / relative_header).is_file():
++            raise ValidationError(f"missing public header: {framework_path / relative_header}")
++
++    binary_architectures = set(command_output(["xcrun", "lipo", "-archs", str(binary_path)]).split())
++    if binary_architectures != expected["architectures"]:
++        raise ValidationError(f"{identifier} binary architectures mismatch: expected {sorted(expected['architectures'])}, got {sorted(binary_architectures)}")
++    symbols = command_output(["xcrun", "nm", "-gjU", str(binary_path)])
++    for required_symbol in REQUIRED_SYMBOLS:
++        if required_symbol not in symbols:
++            raise ValidationError(f"{identifier} missing symbol: {required_symbol}")
++
++
++def validate_xcframework(xcframework_path: Path) -> None:
++    """Validate the complete xlog XCFramework required by BTLogger."""
++    if not xcframework_path.is_dir():
++        raise ValidationError(f"XCFramework does not exist: {xcframework_path}")
++    libraries = load_libraries(xcframework_path)
++    if set(libraries) != set(EXPECTED_LIBRARIES):
++        raise ValidationError(f"library identifiers mismatch: expected {sorted(EXPECTED_LIBRARIES)}, got {sorted(libraries)}")
++    for identifier, expected in EXPECTED_LIBRARIES.items():
++        validate_library(xcframework_path, identifier, libraries[identifier], expected)
++
++
++def main() -> int:
++    """Parse the target path and return a shell-friendly validation result."""
++    parser = argparse.ArgumentParser(description="Validate the BTLogger xlog XCFramework")
++    parser.add_argument("xcframework", type=Path)
++    arguments = parser.parse_args()
++    try:
++        validate_xcframework(arguments.xcframework.resolve())
++    except ValidationError as error:
++        print(f"FAIL: {error}")
++        return 1
++    print(f"PASS: {arguments.xcframework.resolve()}")
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
++
+diff --git a/mars/xlog/tests/verify_ios_xcframework_unittest.py b/mars/xlog/tests/verify_ios_xcframework_unittest.py
+new file mode 100644
+index 00000000..2feebbc8
+--- /dev/null
++++ b/mars/xlog/tests/verify_ios_xcframework_unittest.py
+@@ -0,0 +1,54 @@
++import importlib.util
++import plistlib
++import tempfile
++import unittest
++from pathlib import Path
++
++
++MODULE_PATH = Path(__file__).with_name("verify_ios_xcframework.py")
++MODULE_SPEC = importlib.util.spec_from_file_location("verify_ios_xcframework", MODULE_PATH)
++validator = importlib.util.module_from_spec(MODULE_SPEC)
++MODULE_SPEC.loader.exec_module(validator)
++
++
++class VerifyIOSXCFrameworkTests(unittest.TestCase):
++    def test_missing_xcframework_is_rejected(self) -> None:
++        with tempfile.TemporaryDirectory() as temporary_directory:
++            missing_path = Path(temporary_directory) / "mars.xcframework"
++            with self.assertRaisesRegex(validator.ValidationError, "does not exist"):
++                validator.validate_xcframework(missing_path)
++
++    def test_wrong_library_identifiers_are_rejected(self) -> None:
++        with tempfile.TemporaryDirectory() as temporary_directory:
++            xcframework_path = Path(temporary_directory) / "mars.xcframework"
++            xcframework_path.mkdir()
++            info = {"AvailableLibraries": [{"LibraryIdentifier": "ios-arm64"}]}
++            with (xcframework_path / "Info.plist").open("wb") as info_file:
++                plistlib.dump(info, info_file)
++            with self.assertRaisesRegex(validator.ValidationError, "library identifiers mismatch"):
++                validator.validate_xcframework(xcframework_path)
++
++    def test_wrong_architectures_are_rejected_before_binary_inspection(self) -> None:
++        with tempfile.TemporaryDirectory() as temporary_directory:
++            xcframework_path = Path(temporary_directory) / "mars.xcframework"
++            xcframework_path.mkdir()
++            libraries = []
++            for identifier, expected in validator.EXPECTED_LIBRARIES.items():
++                architectures = ["x86_64"] if identifier == "ios-arm64" else sorted(expected["architectures"])
++                library = {
++                    "LibraryIdentifier": identifier,
++                    "LibraryPath": "mars.framework",
++                    "SupportedArchitectures": architectures,
++                    "SupportedPlatform": expected["platform"],
++                }
++                if expected["variant"] is not None:
++                    library["SupportedPlatformVariant"] = expected["variant"]
++                libraries.append(library)
++            with (xcframework_path / "Info.plist").open("wb") as info_file:
++                plistlib.dump({"AvailableLibraries": libraries}, info_file)
++            with self.assertRaisesRegex(validator.ValidationError, "architectures mismatch"):
++                validator.validate_xcframework(xcframework_path)
++
++
++if __name__ == "__main__":
++    unittest.main()

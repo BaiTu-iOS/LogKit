@@ -1,0 +1,3 @@
+# Preserve upstream license text and context lines in git-format-patch files.
+LICENSE -whitespace
+Patches/*.patch -whitespace
