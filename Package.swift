@@ -12,6 +12,7 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "604.0.0"),
     ],
     targets: [
+        .binaryTarget(name: "mars", path: "Vendor/Mars/mars.xcframework.zip"),
         .macro(
             name: "LogCompilerPlugin",
             dependencies: [
@@ -20,7 +21,21 @@ let package = Package(
             ],
         ),
         .target(name: "LogCore"),
-        .target(name: "LogKit", dependencies: ["LogCompilerPlugin", "LogCore"]),
+        .target(
+            name: "LogKit",
+            dependencies: [
+                "LogCompilerPlugin",
+                "LogCore",
+                .target(name: "mars", condition: .when(platforms: [.iOS])),
+            ],
+            linkerSettings: [
+                .linkedFramework("CoreTelephony", .when(platforms: [.iOS])),
+                .linkedFramework("SystemConfiguration", .when(platforms: [.iOS])),
+                .linkedLibrary("c++", .when(platforms: [.iOS])),
+                .linkedLibrary("resolv.9", .when(platforms: [.iOS])),
+                .linkedLibrary("z", .when(platforms: [.iOS])),
+            ],
+        ),
         .testTarget(name: "LogChannelTests", dependencies: ["LogKit"]),
         .testTarget(
             name: "LogMacroTests",

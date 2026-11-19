@@ -56,6 +56,8 @@ $(inherited) -Xfrontend -load-plugin-executable -Xfrontend "$(SRCROOT)/Vendor/Lo
 
 This package includes the runtime sources and a host-side arm64 executable, so consumers can build without SwiftSyntax. Installing the regular Git package builds the macro from source. Recheck compiler compatibility when upgrading Xcode.
 
-## Optional Mars file logging engine
+## Mars file logging engine
+
+Starting with 1.1.0, the LogKit product links Mars xlog on iOS. macOS uses the existing logging runtime.
 
 [Vendor/Mars](Vendor/Mars) contains the iOS xlog static XCFramework (revision `cf309619`), its eight patches and license notices. It supports arm64 devices and arm64/x86_64 simulators. Hosts can use it in a custom `LKLogDestination`. To rebuild from pinned Tencent/mars sources with Xcode, CMake and Python 3, run `./Scripts/build-mars.sh`. Unzip `Vendor/Mars/mars.xcframework.zip` to access the framework. Pass an output ZIP path to keep the bundled framework in place.
