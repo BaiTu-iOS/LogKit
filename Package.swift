@@ -40,6 +40,7 @@ let package = Package(
                 .linkedLibrary("z", .when(platforms: [.iOS])),
             ],
         ),
+        .testTarget(name: "LogObservationTests", dependencies: ["LogCore"]),
         .testTarget(name: "LogChannelTests", dependencies: ["LogKit"]),
         .testTarget(
             name: "LogMacroTests",
