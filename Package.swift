@@ -12,7 +12,11 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "604.0.0"),
     ],
     targets: [
-        .binaryTarget(name: "mars", path: "Vendor/Mars/mars.xcframework.zip"),
+        .binaryTarget(
+            name: "mars",
+            url: "https://raw.githubusercontent.com/BaiTu-iOS/LogKit/df8abc2930112586bd09d917bb4027da76d4536a/Vendor/Mars/mars.xcframework.zip",
+            checksum: "f700a4ffb24c51d1a490aa054d3929e764353d057a6283d53f6d8bf0ef02a67b",
+        ),
         .macro(
             name: "LogCompilerPlugin",
             dependencies: [

@@ -61,6 +61,4 @@ $(inherited) -Xfrontend -load-plugin-executable -Xfrontend "$(SRCROOT)/Vendor/Lo
 
 自 1.1.0 起，在 iOS 工程中添加 `LogKit` 产品会一并链接 Mars xlog，无需单独添加依赖。macOS 使用原有日志运行时。
 
-[Vendor/Mars](Vendor/Mars) 提供 iOS xlog 静态 XCFramework、八个定制补丁和第三方许可证。预编译产物的 Mars 修订为 `cf309619`，包含真机 arm64 和模拟器 arm64、x86_64。定制内容包括双时区时间格式、按模块分类的系统日志，以及 XCFramework 构建和校验。宿主可在自己的 `LKLogDestination` 中接入 Mars。
-
-在安装 Xcode、CMake 和 Python 3 的 Mac 上，运行 `./Scripts/build-mars.sh` 可从锁定的 Tencent/mars 源码重放补丁、运行测试并更新仓库中的 `mars.xcframework.zip`。解压后即可取得完整框架。也可传入输出 ZIP 路径，例如 `./Scripts/build-mars.sh "$PWD/build/mars.xcframework.zip"`。构建时间和 Git 提交元数据会影响产物字节。
+SwiftPM 下载锁定的 XCFramework ZIP 并校验 SHA-256。[mars-source 分支](https://github.com/BaiTu-iOS/LogKit/tree/mars-source) 保存 xlog 定制补丁、许可证和重建脚本。

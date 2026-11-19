@@ -60,4 +60,4 @@ This package includes the runtime sources and a host-side arm64 executable, so c
 
 Starting with 1.1.0, the LogKit product links Mars xlog on iOS. macOS uses the existing logging runtime.
 
-[Vendor/Mars](Vendor/Mars) contains the iOS xlog static XCFramework (revision `cf309619`), its eight patches and license notices. It supports arm64 devices and arm64/x86_64 simulators. Hosts can use it in a custom `LKLogDestination`. To rebuild from pinned Tencent/mars sources with Xcode, CMake and Python 3, run `./Scripts/build-mars.sh`. Unzip `Vendor/Mars/mars.xcframework.zip` to access the framework. Pass an output ZIP path to keep the bundled framework in place.
+The binary target downloads the pinned XCFramework ZIP and verifies its SHA-256. The [mars-source branch](https://github.com/BaiTu-iOS/LogKit/tree/mars-source) contains the xlog patches, licenses and rebuild script.
