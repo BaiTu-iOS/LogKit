@@ -7,7 +7,10 @@ import PackageDescription
 let package = Package(
     name: "LogKit",
     platforms: [.iOS(.v15), .macOS(.v12)],
-    products: [.library(name: "LogKit", targets: ["LogKit", "LogCore"])],
+    products: [
+        .library(name: "LogKit", targets: ["LogKit", "LogCore"]),
+        .library(name: "LogKitConsole", targets: ["LogKitConsole"]),
+    ],
     dependencies: [
         .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "604.0.0"),
     ],
@@ -25,6 +28,12 @@ let package = Package(
             ],
         ),
         .target(name: "LogCore"),
+        .target(
+            name: "LogKitConsole",
+            dependencies: ["LogCore"],
+            swiftSettings: [.swiftLanguageMode(.v5)],
+            linkerSettings: [.linkedLibrary("sqlite3", .when(platforms: [.iOS], configuration: .debug))],
+        ),
         .target(
             name: "LogKit",
             dependencies: [

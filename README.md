@@ -36,6 +36,26 @@ observation.cancel()
 
 Keep the observation alive while collecting events. Its threshold is independent of the output destination. Releasing the observation stops delivery. Avoid logging credentials and personal data.
 
+## Optional Debug console (iOS)
+
+Select the additional `LogKitConsole` product to enable the in-app console. It depends only on `LogCore`; `LogKit` does not pull it in. All console source, including imports, observation and SQLite history, is enclosed in `#if DEBUG && canImport(UIKit)`. Release builds expose no console types and collect no console history. Do not define `DEBUG` in Release configurations. The product may remain in the dependency graph.
+
+```swift
+#if DEBUG && canImport(UIKit)
+import LogKitConsole
+#endif
+
+// Call on the main thread after presenter has joined the host window.
+#if DEBUG && canImport(UIKit)
+LKLogConsole.shared.install()
+LKLogConsole.shared.show(from: presenter)
+#endif
+```
+
+The console supports live logs, level/category/time filters, full-text search, JSON details, and copying or sharing an individual message. Installation retains up to 5,000 entries with a 10 MiB text payload budget in local cache storage. Hiding or collapsing the UI keeps history collection running; `uninstall()` stops observation and collection without deleting existing cache files. Use `LKLogConsoleShakeWindow` as the host window in Debug builds for a shake-to-open entry point.
+
+Migrated from BTLoggerConsole, this module uses separate `LogKitConsole` cache and preferences keys; it does not load the old component's history. xlog ZIP sharing is omitted because LogKit has no archive export API. The console retains the original component's Swift 5 language mode.
+
 ## Objective-C
 
 ```objc

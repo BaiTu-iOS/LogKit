@@ -37,6 +37,26 @@ observation.cancel()
 
 订阅的最低级别独立于输出端。取消或释放订阅后停止接收日志。日志正文应避免包含凭据和个人信息。
 
+## 可选的 Debug 日志中控（iOS）
+
+需要应用内日志界面时，额外选择 `LogKitConsole` 产品。它只依赖 `LogCore`，不会由 `LogKit` 自动引入。所有 Console 源码（包括导入、订阅和 SQLite 历史存储）均在 `#if DEBUG && canImport(UIKit)` 内；Release 不提供 Console 类型，也不采集历史。不要在 Release 配置中定义 `DEBUG`。产品仍可留在依赖图中。
+
+```swift
+#if DEBUG && canImport(UIKit)
+import LogKitConsole
+#endif
+
+// 主线程调用；presenter 必须已进入宿主窗口。
+#if DEBUG && canImport(UIKit)
+LKLogConsole.shared.install()
+LKLogConsole.shared.show(from: presenter)
+#endif
+```
+
+支持实时日志、等级/模块/时间筛选、全文搜索、JSON 详情以及单条原文复制与分享。安装后保留最多 5,000 条、正文载荷最多 10 MiB 的本地缓存历史；隐藏或折叠只关闭页面，`uninstall()` 才停止订阅和历史采集，已有缓存不会删除。需要摇一摇入口时，Debug 下使用 `LKLogConsoleShakeWindow` 作为宿主窗口。
+
+本模块迁移自 BTLoggerConsole，使用独立的 `LogKitConsole` 缓存目录和偏好键，不读取旧组件的历史。当前不提供 xlog ZIP 分享，因为 LogKit 尚无文件打包接口。Console 暂时保持原组件的 Swift 5 语言模式。
+
 ## Objective-C
 
 ```objc
